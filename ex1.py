@@ -99,7 +99,7 @@ class process_data:
 
         return new_rgb
 
-def createModel(input_shape, NUM_CLASSES):
+def createModel(input_shape, NUM_CLASSES, INIT_LR = 1e-3, EPOCHS=10):
         model = Sequential()
         # first set of CONV => RELU => MAX POOL layers
         model.add(Conv2D(32, (3, 3), padding='same', activation='relu', input_shape=input_shape))
