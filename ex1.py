@@ -59,9 +59,12 @@ class read_data:
             #img = load_img(imageFullPath)
             #arr = img_to_array(img)
             img_bgr = cv2.imread(imageFullPath)
-            img_rgb = np.stack((img_bgr[:,:,2],img_bgr[:,:,1],img_bgr[:,:,0]), axis=-1)
-            resized_img = cv2.resize(img_rgb, (self.HEIGHT,self.WIDTH)) #Numpy array with shape (HEIGHT, WIDTH,3)
-            
+            try:
+                img_rgb = np.stack((img_bgr[:,:,2],img_bgr[:,:,1],img_bgr[:,:,0]), axis=-1)
+                resized_img = cv2.resize(img_rgb, (self.HEIGHT,self.WIDTH)) #Numpy array with shape (HEIGHT, WIDTH,3)
+            except:
+                print(imageFullPath+"is empty")
+
             imageFileName = imageFileName.replace('.jpeg','')
             ImageNameDataHash[str(imageFileName)] = resized_img
         return ImageNameDataHash
@@ -166,8 +169,8 @@ def createModel(input_shape, NUM_CLASSES, INIT_LR = 1e-3, EPOCHS=10):
 
 if __name__ == "__main__":
     readData = read_data()
-    raw_df = readData.readtrainCSV('trainLabels.csv')
-    total_NameDataHash = readData.readtrainData("train/")
+    raw_df = readData.readtrainCSV('C:/Users/Administrator/Desktop/trainLabels_small.csv')
+    total_NameDataHash = readData.readtrainData("F:/Messidor/temp/")
     pData = process_data()
     #output total_data in pandas dataframe for traininig and validation
     total_data = readData.outputPD(raw_df, total_NameDataHash)
@@ -216,37 +219,47 @@ if __name__ == "__main__":
     HEIGHT = 512
     DEPTH = 3
 
-    sample_img = total_NameDataHash['16_left']
-    img_rgb_new = pData.enhanceImage(sample_img)
+    #sample_img = total_NameDataHash['16_left']
+    #img_rgb_new = pData.enhanceImage(sample_img)
 
-    plt.imshow(sample_img)
-    plt.show()
+    #plt.imshow(sample_img)
+    #plt.show()
 
-    plt.imshow(img_rgb_new)
-    plt.show()
+    #plt.imshow(img_rgb_new)
+    #plt.show()
 
-    new_rgb = pData.colorNormalisation(img_rgb_new)
+    #new_rgb = pData.colorNormalisation(img_rgb_new)
 
-    plt.imshow(new_rgb)
-    plt.show()
+    #plt.imshow(new_rgb)
+    #plt.show()
 
     BATCH_SIZE = 64
-    EPOCHS = 10
+    EPOCHS = 2
     class_weight = {0: 2.,
                     1: 15.,
                     2: 7.,
                     3: 73.,
                     4: 73.}
 
+    print("Reshaping train_x and val_x")
+    x_train = np.zeros([train_x.shape[0], HEIGHT, WIDTH, DEPTH])
+    x_val = np.zeros([val_x.shape[0], HEIGHT, WIDTH, DEPTH])
+    for i in range(train_x.shape[0]):
+        x_train[i] = x_train[i]
+    for i in range(val_x.shape[0]):
+        x_val[i] = val_x[i]
+    print("reshaped train_x as x_train: ", x_train.shape)
+    print("reshaped val_x as x_val: ", x_val.shape)
     print('compiling model...')
     input_shape = (HEIGHT, WIDTH, DEPTH)
     model = createModel(input_shape, 5)
+	model.summary()
 
     print('training network')
     sys.stdout.flush()
-    H = model.fit_generator(aug.flow(train_x, train_y, batch_size=BS), \
-        validation_data=(val_x, val_y), \
-        steps_per_epoch=len(trainX) // BS, \
+    H = model.fit_generator(aug.flow(x_train, train_y, batch_size=BATCH_SIZE), \
+        validation_data=(x_val, val_y), \
+        steps_per_epoch=len(train_x) // BATCH_SIZE, \
         class_weight=class_weight, epochs=EPOCHS, verbose=1)
 
     print("saving model")
