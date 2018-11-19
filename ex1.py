@@ -2,6 +2,7 @@ import pandas as pd
 import csv
 import numpy as np
 import os
+import sys
 
 from keras.preprocessing.image import array_to_img, img_to_array, load_img
 from keras.models import Sequential
@@ -19,9 +20,9 @@ class read_data:
     def __init__(self, HEIGHT=512, WIDTH=512):
         self.HEIGHT = HEIGHT
         self.WIDTH = WIDTH
-    
-    
+        
     def readtrainCSV(self, csvDir):
+        print("reading trainLabels.csv ...")
         raw_df = pd.read_csv(csvDir, sep=',')
         total_num = len(raw_df)
         level_list = [0, 1, 2, 3, 4]
@@ -41,6 +42,8 @@ class read_data:
             raw_df.at[index, 'PatientID'] = patientID
 
         print('number of patients: ', len(raw_df['PatientID'].unique()))
+
+        self.trainCSV = raw_df
 
         return raw_df
 
@@ -64,6 +67,30 @@ class read_data:
             imageFileName = imageFileName.replace('.jpeg','')
             ImageNameDataHash[str(imageFileName)] = resized_img
         return ImageNameDataHash
+
+    def outputPD(self, raw_df, ImageNameDataHash):
+        keepImages = list(ImageNameDataHash.keys())
+        raw_df = raw_df[raw_df['image'].isin(keepImages)]
+        print("the new length of label data is: ",len(raw_df))
+
+        #convert hash to dataframe
+        image_name = []
+        image_data = []
+        for index, row in raw_df.iterrows():
+            key = str(row[0])
+            if key in ImageNameDataHash:
+                image_name.append(key)
+                image_data.append(ImageNameDataHash[key])
+
+        total_data = pd.DataFrame({'image': image_name, 'data': image_data})
+        print(list(total_data.columns))
+        print("the length of the new total data is ",len(total_data))
+        total_data = pd.merge(total_data, raw_df, left_on='image', right_on='image', how='outer')
+        print("after merging both labels and image data...")
+        print(list(total_data.columns))
+        return total_data
+        
+        
 
 class process_data:
 
@@ -131,7 +158,7 @@ def createModel(input_shape, NUM_CLASSES, INIT_LR = 1e-3, EPOCHS=10):
         model.add(Dense(1024, activation='relu'))
         model.add(Dropout(0.5))
         model.add(Dense(1024, activation='relu'))
-        model.add(Dense(output_dim=NUM_CLASSES, activation='softmax'))
+        model.add(Dense(activation='softmax', units = NUM_CLASSES))
         # returns our fully constructed deep learning + Keras image classifier 
         opt = Adam(lr=INIT_LR, decay=INIT_LR / EPOCHS)
         # use binary_crossentropy if there are two classes
@@ -142,15 +169,56 @@ def createModel(input_shape, NUM_CLASSES, INIT_LR = 1e-3, EPOCHS=10):
 if __name__ == "__main__":
     readData = read_data()
     raw_df = readData.readtrainCSV('trainLabels.csv')
-    total_data = readData.readtrainData("sample/")
+    total_NameDataHash = readData.readtrainData("sample/")
     pData = process_data()
+    #output total_data in pandas dataframe for traininig and validation
+    total_data = readData.outputPD(raw_df, total_NameDataHash)
+
+    print("partition data into 75:25...")
+    sys.stdout.flush()
+    print("Number of patients in the dataset is: ",raw_df.PatientID.unique())
+    unique_ids = total_data.PatientID.unique()
+    print("unique_ids shape: ",len(unique_ids))
+
+    train_ids, valid_ids = train_test_split(unique_ids, test_size=0.25, random_state =10)
+    trainID_list = train_ids.tolist()
+    print("trainID_list shape: ",len(trainID_list))
+
+    trainDF = total_data[total_data.PatientID.isin(trainID_list)]
+    valDF = total_data[~total_data.PatientID.isin(trainID_list)]
+
+    trainDF = trainDF.reset_index(drop=True)
+    valDF = valDF.reset_index(drop=True)
+
+    print(trainDF.head())
+    print(valDF.head())
+
+    train_x = trainDF['data']
+    train_y = trainDF['level']
+
+    val_x = valDF['data']
+    val_y = valDF['level']
+
+    print("train_x shape: ", train_x.shape, "val_x shape: ", val_x.shape)
+
+    NUM_CLASSES = 5
+    train_y = to_categorical(train_y, num_classes=NUM_CLASSES)
+    val_y = to_categorical(val_y, num_classes=NUM_CLASSES)
+
+    #data augmentation
+    print("augmenting data")
+    sys.stdout.flush()
+    aug = ImageDataGenerator(rotation_range=30, width_shift_range=0.1, \
+        height_shift_range=0.1, shear_range=0.2, zoom_range=0.2,\
+        horizontal_flip=True, fill_mode="nearest")
+    
 
 
     WIDTH = 512
     HEIGHT = 512
     DEPTH = 3
 
-    sample_img = total_data['16_left']
+    sample_img = total_NameDataHash['16_left']
     img_rgb_new = pData.enhanceImage(sample_img)
 
     plt.imshow(sample_img)
@@ -164,11 +232,41 @@ if __name__ == "__main__":
     plt.imshow(new_rgb)
     plt.show()
 
+    BATCH_SIZE = 64
+    EPOCHS = 10
     class_weight = {0: 2.,
                     1: 15.,
                     2: 7.,
                     3: 73.,
                     4: 73.}
-    
+
+    print('compiling model...')
     input_shape = (HEIGHT, WIDTH, DEPTH)
     model = createModel(input_shape, 5)
+
+    print('training network')
+    sys.stdout.flush()
+    H = model.fit_generator(aug.flow(train_x, train_y, batch_size=BS), \
+        validation_data=(val_x, val_y), \
+        steps_per_epoch=len(trainX) // BS, \
+        class_weight=class_weight, epochs=EPOCHS, verbose=1)
+
+    print("saving model")
+    sys.stdout.flush()
+    model.save('trained_model')
+
+    print("Generating plots...")
+    sys.stdout.flush()
+    matplotlib.use("Agg")
+    matplotlib.pyplot.style.use("ggplot")
+    matplotlib.pyplot.figure()
+    N = EPOCHS
+    matplotlib.pyplot.plot(np.arange(0, N), H.history["loss"], label="train_loss")
+    matplotlib.pyplot.plot(np.arange(0, N), H.history["val_loss"], label="val_loss")
+    matplotlib.pyplot.plot(np.arange(0, N), H.history["acc"], label="train_acc")
+    matplotlib.pyplot.plot(np.arange(0, N), H.history["val_acc"], label="val_acc")
+    matplotlib.pyplot.title("Training Loss and Accuracy on diabetic retinopathy detection")
+    matplotlib.pyplot.xlabel("Epoch #")
+    matplotlib.pyplot.ylabel("Loss/Accuracy")
+    matplotlib.pyplot.legend(loc="lower left")
+    matplotlib.pyplot.savefig("plot.png")
