@@ -13,7 +13,9 @@ from sklearn.model_selection import train_test_split
 from keras.utils import to_categorical
 
 import cv2
+import matplotlib
 from matplotlib import pyplot as plt
+
 
 class read_data:
 
@@ -234,7 +236,7 @@ if __name__ == "__main__":
     #plt.show()
 
     BATCH_SIZE = 64
-    EPOCHS = 2
+    EPOCHS = 10
     class_weight = {0: 2.,
                     1: 15.,
                     2: 7.,
@@ -253,7 +255,7 @@ if __name__ == "__main__":
     print('compiling model...')
     input_shape = (HEIGHT, WIDTH, DEPTH)
     model = createModel(input_shape, 5)
-	model.summary()
+    model.summary()
 
     print('training network')
     sys.stdout.flush()
@@ -269,8 +271,8 @@ if __name__ == "__main__":
     print("Generating plots...")
     sys.stdout.flush()
     matplotlib.use("Agg")
-    matplotlib.pyplot.style.use("ggplot")
-    matplotlib.pyplot.figure()
+    plt.style.use("ggplot")
+    plt.figure()
     N = EPOCHS
     matplotlib.pyplot.plot(np.arange(0, N), H.history["loss"], label="train_loss")
     matplotlib.pyplot.plot(np.arange(0, N), H.history["val_loss"], label="val_loss")
