@@ -169,7 +169,7 @@ def createModel(input_shape, NUM_CLASSES, INIT_LR = 1e-3, EPOCHS=10):
 if __name__ == "__main__":
     readData = read_data()
     raw_df = readData.readtrainCSV('trainLabels.csv')
-    total_NameDataHash = readData.readtrainData("sample/")
+    total_NameDataHash = readData.readtrainData("train/")
     pData = process_data()
     #output total_data in pandas dataframe for traininig and validation
     total_data = readData.outputPD(raw_df, total_NameDataHash)
