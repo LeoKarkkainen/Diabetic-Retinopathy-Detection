@@ -43,8 +43,6 @@ class read_data:
 
         print('number of patients: ', len(raw_df['PatientID'].unique()))
 
-        self.trainCSV = raw_df
-
         return raw_df
 
     def readtrainData(self, trainDir):
