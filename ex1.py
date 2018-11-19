@@ -57,7 +57,7 @@ class read_data:
             #print(imageFullPath)
             #img = load_img(imageFullPath)
             #arr = img_to_array(img)
-            img_bgr = cv2.imread('sample/16_left.jpeg')
+            img_bgr = cv2.imread(imageFullPath)
             img_rgb = np.stack((img_bgr[:,:,2],img_bgr[:,:,1],img_bgr[:,:,0]), axis=-1)
             resized_img = cv2.resize(img_rgb, (self.HEIGHT,self.WIDTH)) #Numpy array with shape (HEIGHT, WIDTH,3)
             
