@@ -14,10 +14,12 @@ from keras.utils import to_categorical
 
 import cv2
 import matplotlib
-from matplotlib import pyplot as plt
+import matplotlib.pyplot as plt
 
 
 class read_data:
+
+    level_ratio = []
 
     def __init__(self, HEIGHT=512, WIDTH=512):
         self.HEIGHT = HEIGHT
@@ -32,6 +34,7 @@ class read_data:
         for level in level_list:
             targeted_label = raw_df [ raw_df['level'] == level ]
             level_count.append(len(targeted_label))
+            self.level_ratio.append(level_count[level] / total_num)
             print("the number of label " + str(level) +" is: " + str(level_count[level])
                   + " as" + "{0: .0%}".format(level_count[level] / total_num))
 
@@ -61,11 +64,9 @@ class read_data:
             #img = load_img(imageFullPath)
             #arr = img_to_array(img)
             img_bgr = cv2.imread(imageFullPath)
-            try:
-                img_rgb = np.stack((img_bgr[:,:,2],img_bgr[:,:,1],img_bgr[:,:,0]), axis=-1)
-                resized_img = cv2.resize(img_rgb, (self.HEIGHT,self.WIDTH)) #Numpy array with shape (HEIGHT, WIDTH,3)
-            except:
-                print(imageFullPath+"is empty")
+            img_rgb = np.stack((img_bgr[:,:,2],img_bgr[:,:,1],img_bgr[:,:,0]), axis=-1)
+            resized_img = cv2.resize(img_rgb, (self.HEIGHT,self.WIDTH)) #Numpy array with shape (HEIGHT, WIDTH,3)
+            #print(imageFullPath+"is empty")
 
             imageFileName = imageFileName.replace('.jpeg','')
             ImageNameDataHash[str(imageFileName)] = resized_img
@@ -171,8 +172,8 @@ def createModel(input_shape, NUM_CLASSES, INIT_LR = 1e-3, EPOCHS=10):
 
 if __name__ == "__main__":
     readData = read_data()
-    raw_df = readData.readtrainCSV('C:/Users/Administrator/Desktop/trainLabels_small.csv')
-    total_NameDataHash = readData.readtrainData("F:/Messidor/temp/")
+    raw_df = readData.readtrainCSV('trainLabels_small.csv')
+    total_NameDataHash = readData.readtrainData("train_small/")
     pData = process_data()
     #output total_data in pandas dataframe for traininig and validation
     total_data = readData.outputPD(raw_df, total_NameDataHash)
@@ -189,6 +190,9 @@ if __name__ == "__main__":
 
     trainDF = total_data[total_data.PatientID.isin(trainID_list)]
     valDF = total_data[~total_data.PatientID.isin(trainID_list)]
+
+    print(trainDF.head())
+    print(valDF.head())
 
     trainDF = trainDF.reset_index(drop=True)
     valDF = valDF.reset_index(drop=True)
@@ -237,6 +241,10 @@ if __name__ == "__main__":
 
     BATCH_SIZE = 64
     EPOCHS = 10
+
+    level_ratio = read_data.level_ratio
+    #level_ratio = sorted(level_ratio)
+    print("level_ratio: ",level_ratio)
     class_weight = {0: 2.,
                     1: 15.,
                     2: 7.,
@@ -247,7 +255,7 @@ if __name__ == "__main__":
     x_train = np.zeros([train_x.shape[0], HEIGHT, WIDTH, DEPTH])
     x_val = np.zeros([val_x.shape[0], HEIGHT, WIDTH, DEPTH])
     for i in range(train_x.shape[0]):
-        x_train[i] = x_train[i]
+        x_train[i] = train_x[i]
     for i in range(val_x.shape[0]):
         x_val[i] = val_x[i]
     print("reshaped train_x as x_train: ", x_train.shape)
@@ -261,8 +269,8 @@ if __name__ == "__main__":
     sys.stdout.flush()
     H = model.fit_generator(aug.flow(x_train, train_y, batch_size=BATCH_SIZE), \
         validation_data=(x_val, val_y), \
-        steps_per_epoch=len(train_x) // BATCH_SIZE, \
-        class_weight=class_weight, epochs=EPOCHS, verbose=1)
+        steps_per_epoch = len(train_x) // BATCH_SIZE, \
+        class_weight = class_weight, epochs=EPOCHS, verbose=1)
 
     print("saving model")
     sys.stdout.flush()
@@ -270,16 +278,15 @@ if __name__ == "__main__":
 
     print("Generating plots...")
     sys.stdout.flush()
-    matplotlib.use("Agg")
     plt.style.use("ggplot")
-    plt.figure()
+    #plt.figure()
     N = EPOCHS
-    matplotlib.pyplot.plot(np.arange(0, N), H.history["loss"], label="train_loss")
-    matplotlib.pyplot.plot(np.arange(0, N), H.history["val_loss"], label="val_loss")
-    matplotlib.pyplot.plot(np.arange(0, N), H.history["acc"], label="train_acc")
-    matplotlib.pyplot.plot(np.arange(0, N), H.history["val_acc"], label="val_acc")
-    matplotlib.pyplot.title("Training Loss and Accuracy on diabetic retinopathy detection")
-    matplotlib.pyplot.xlabel("Epoch #")
-    matplotlib.pyplot.ylabel("Loss/Accuracy")
-    matplotlib.pyplot.legend(loc="lower left")
-    matplotlib.pyplot.savefig("plot.png")
+    plt.plot(np.arange(0, N), H.history["loss"], label="train_loss")
+    plt.plot(np.arange(0, N), H.history["val_loss"], label="val_loss")
+    plt.plot(np.arange(0, N), H.history["acc"], label="train_acc")
+    plt.plot(np.arange(0, N), H.history["val_acc"], label="val_acc")
+    plt.title("Training Loss and Accuracy on diabetic retinopathy detection")
+    plt.xlabel("Epoch #")
+    plt.ylabel("Loss/Accuracy")
+    plt.legend(loc="lower left")
+    plt.savefig("plot.png")
