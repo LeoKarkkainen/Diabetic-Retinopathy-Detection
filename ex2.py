@@ -19,6 +19,7 @@ import cv2
 import matplotlib
 #matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import random
 
 
 class read_data:
@@ -124,36 +125,41 @@ class process_data:
 
     def binaryCluster(self, trainDF, aug_sick=True, aug_healthy=True, DEPTH=3):
         train_sick = trainDF[trainDF['level'] != 0]
+        print("data_sick shape: ", train_sick.shape)
         train_healthy = trainDF[trainDF['level'] == 0]
+        print("data_healthy shape:", train_healthy.shape)
 
         #deal with data labeled with 1,2,3,4
-        train_sick_label = np.ones((train_sick.shape[0], 1)) #1,2,3,4 converted to class 1
         train_sick_new = np.zeros((train_sick['data'].shape[0], 512, 512, DEPTH))
         train_sick = np.array(train_sick['data'])
         for i in range(train_sick.shape[0]):
                 #adjusting data format for ImageDataGenerator
                 train_sick_new[i, :, :, :] = train_sick[i]
+        print("data_sick_new shape: ", train_sick_new.shape)
 
         if aug_sick == True:
-            augmented_sick = self.augmentData(train_sick_new, train_sick_new.shape[0])
-            train_sick = np.concatenate((train_sick_new, augmented_sick))
-            train_sick = np.random.shuffle(train_sick)
+            train_sick = self.augmentData(train_sick_new, train_sick_new.shape[0])
+            print("data_sick final shape: ", train_sick.shape)
         else:
             train_sick = train_sick_new
+            print("data_sick final shape:",train_sick.shape)
+
+        train_sick_label = np.ones((train_sick.shape[0], 1)) #1,2,3,4 converted to class 1
 
         #deal with data labeled with 0
-        train_healthy_label = np.zeros((train_healthy.shape[0], 1))
         train_healthy_new = np.zeros((train_healthy.shape[0], 512, 512, DEPTH))
         train_healthy = np.array(train_healthy['data'])
         for i in range(train_healthy.shape[0]):
             train_healthy_new[i, :, :, :] = train_healthy[i]
 
         if aug_healthy == True:
-            augmented_healthy = self.augmentData(train_healthy_new, train_healthy_new.shape[0])
-            train_healthy = np.concatenate((train_healthy_new, augmented_healthy))
-            train_healthy = np.random.shuffle(train_healthy)
+            train_healthy = self.augmentData(train_healthy_new, train_healthy_new.shape[0] // 3, False)
+            print("data_healthy final shape:",train_healthy.shape)
         else:
             train_healthy = train_healthy_new
+            print("data_healthy final shape:",train_healthy.shape)
+
+        train_healthy_label = np.zeros((train_healthy.shape[0], 1))
 
         train_x = np.concatenate((train_sick,train_healthy))
         train_y = np.concatenate((train_sick_label, train_healthy_label))
@@ -161,19 +167,28 @@ class process_data:
         
         return train_x, train_y
 
-    def augmentData(self,data,batch_size):
+    def augmentData(self,data,batch_size, big=True):
         
         print("augmenting data")
         sys.stdout.flush()
-        #augment data scheme 1
-        aug = ImageDataGenerator(rotation_range=180, fill_mode="nearest")
-        generated_data_1 = aug.flow(data, batch_size=batch_size)
-        generated_data_1 = generated_data[0]
-        #augment data scheme 2
-        aug = ImageDataGenerator(rotation_range=180, vertical_flip=True, fill_mode="nearest")
-        generated_data_2 = aug.flow(data, batch_size=batch_size)
-        generated_data_2 = sec_generated_data[0]
-        augmented_data = np.concatenate((data, generated_data_1, generated_data_2))
+        if big == True:
+            #augment data scheme 1
+            aug = ImageDataGenerator(rotation_range=90, fill_mode="nearest")
+            generated_data_1 = aug.flow(data, batch_size=batch_size)
+            generated_data_1 = generated_data_1[0]
+            #augment data scheme 2
+            aug = ImageDataGenerator(rotation_range=90, vertical_flip=True, fill_mode="nearest")
+            generated_data_2 = aug.flow(data, batch_size=batch_size)
+            generated_data_2 = generated_data_2[0]
+            augmented_data = np.concatenate((data, generated_data_1, generated_data_2))
+            print("augmented_data size: ", augmented_data.shape)
+        else:
+            #augment data scheme 1
+            aug = ImageDataGenerator(rotation_range=90, fill_mode="nearest")
+            generated_data_1 = aug.flow(data, batch_size=batch_size)
+            generated_data_1 = generated_data_1[0]
+            augmented_data = np.concatenate((data, generated_data_1))
+            print("augmented_data size: ", augmented_data.shape)
         
         return augmented_data
 
@@ -248,14 +263,14 @@ def single_class_accuracy(y_true, y_pred):
     
 
 if __name__ == "__main__":
-    #readData = read_data()
-    #raw_df = readData.readtrainCSV('trainLabels.csv')
-    #total_NameDataHash = readData.readtrainData("train_small/")
+    readData = read_data()
+    raw_df = readData.readtrainCSV('trainLabels.csv')
+    total_NameDataHash = readData.readtrainData("train_smaller/")
     pData = process_data()
     #output total_data in pandas dataframe for traininig and validation
-    #total_data = readData.outputPD(raw_df, total_NameDataHash)
+    total_data = readData.outputPD(raw_df, total_NameDataHash)
     #total_data.to_pickle("total_data.pkl")
-    total_data =pd.read_pickle('total_data.pkl')
+    #total_data =pd.read_pickle('total_data.pkl')
     #level_number = read_data.level_number
 
     print("partition data into 75:25...")
@@ -263,7 +278,7 @@ if __name__ == "__main__":
     sample_num = total_data.shape[0]
     index_list = np.array(range(sample_num))
 
-    train_ids, valid_ids = train_test_split(index_list, test_size=0.05, random_state=10)
+    train_ids, valid_ids = train_test_split(index_list, test_size=0.25, random_state=10)
     trainID_list = train_ids.tolist()
     print("trainID_list shape: ", len(trainID_list))
 
@@ -277,3 +292,8 @@ if __name__ == "__main__":
     # trainDF = balancing_data(trainDF, level_number)
 
     train_x, train_y = pData.binaryCluster(trainDF)
+    print("binary class - train_x shape: ",train_x.shape)
+    print("binary class - train_y shape",train_y.shape)
+    val_x, val_y = pData.binaryCluster(valDF, aug_sick=False, aug_healthy=False)
+    print("binary class - val_x shape: ",val_x.shape)
+    print("binary class - val_y shape",val_y.shape)
