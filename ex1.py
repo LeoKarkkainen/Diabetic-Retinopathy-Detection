@@ -312,7 +312,7 @@ if __name__ == "__main__":
     print('compiling model...')
     
     #global variable
-    INTERESTING_CLASS_ID = 0  # Choose the class of interest
+    #INTERESTING_CLASS_ID = 0  # Choose the class of interest
     
     input_shape = (HEIGHT, WIDTH, DEPTH)
     model = createModel(input_shape, loss=focal_loss)
